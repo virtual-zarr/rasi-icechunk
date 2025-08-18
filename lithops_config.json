@@ -4,6 +4,6 @@
     "storage": "localhost"
   },
   "localhost": {
-    "runtime": "/home/jovyan/casi-icechunk/.venv/bin/python"
+    "runtime": "/home/jovyan/rasi-icechunk/.venv/bin/python"
   }
 }
