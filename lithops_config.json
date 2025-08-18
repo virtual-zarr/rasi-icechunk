@@ -1,0 +1,9 @@
+{
+  "lithops": {
+    "backend": "localhost",
+    "storage": "localhost"
+  },
+  "localhost": {
+    "runtime": "/home/jovyan/casi-icechunk/.venv/bin/python"
+  }
+}

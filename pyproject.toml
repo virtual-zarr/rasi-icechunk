@@ -1,0 +1,25 @@
+[project]
+name = "rasi-icechunk"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fsspec>=2025.7.0",
+    "h5netcdf>=1.6.4",
+    "icechunk>=1.1.2",
+    "kerchunk>=0.2.9",
+    "lithops>=3.6.1",
+    "matplotlib>=3.10.5",
+    "netcdf4>=1.7.2",
+    "obstore>=0.8.0",
+    "s3fs>=2025.7.0",
+    "scipy>=1.16.1",
+    "virtualizarr>=2.1.1",
+    "xarray>=2025.8.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.30.1",
+]
