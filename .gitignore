@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Jupyter notebooks
+.ipynb_checkpoints
+
+# Python version file
+.python-version
