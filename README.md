@@ -2,6 +2,37 @@
 
 Creating virtual icechunk stores for [NASA RASI](https://www.nasa.gov/rasi/) dataset.
 
+## Usage Example
+```
+import icechunk
+import xarray as xr
+import zarr
+
+storage = icechunk.s3_storage(
+    bucket='nasa-veda-scratch',
+    prefix=f"jbusecke/RASI-test/",
+    anonymous=False,
+    from_env=True,
+)
+
+chunk_url = "s3://nasa-waterinsight/test/CASI/"
+
+virtual_credentials = icechunk.containers_credentials(
+    {
+        chunk_url: icechunk.s3_anonymous_credentials()
+    }
+)
+
+repo = icechunk.Repository.open(
+    storage=storage,
+    authorize_virtual_chunk_access=virtual_credentials,
+)
+
+session = repo.readonly_session('main')
+ds = xr.open_zarr(session.store, consolidated=False, zarr_version=3)
+ds
+```
+
 ## Dependency management
 
 This repo uses [uv](https://docs.astral.sh/uv/) as package/project manager.
