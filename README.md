@@ -3,19 +3,21 @@
 Creating virtual icechunk stores for [NASA RASI](https://www.nasa.gov/rasi/) dataset.
 
 ## Usage Example
-```
+```python
 import icechunk
 import xarray as xr
 import zarr
 
 storage = icechunk.s3_storage(
     bucket='nasa-veda-scratch',
-    prefix=f"jbusecke/RASI-test/",
+    prefix=f"jbusecke/RASI/test/HISTORICAL/",
+    # prefix=f"jbusecke/RASI/test/SSP245/",
+    # prefix=f"jbusecke/RASI/test/SSP585/",
     anonymous=False,
     from_env=True,
 )
 
-chunk_url = "s3://nasa-waterinsight/test/CASI/"
+chunk_url = "s3://nasa-waterinsight/RASI"
 
 virtual_credentials = icechunk.containers_credentials(
     {
