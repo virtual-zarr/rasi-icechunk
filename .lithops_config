@@ -1,0 +1,7 @@
+lithops:
+    backend: localhost
+    storage: localhost
+    execution_timeout: 21600
+
+localhost:
+    runtime: "/home/jovyan/rasi-icechunk/.venv/bin/python"

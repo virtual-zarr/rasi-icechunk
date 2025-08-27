@@ -17,7 +17,7 @@ storage = icechunk.s3_storage(
     from_env=True,
 )
 
-chunk_url = "s3://nasa-waterinsight/RASI"
+chunk_url = "s3://nasa-waterinsight/RASI/"
 
 virtual_credentials = icechunk.containers_credentials(
     {
@@ -34,6 +34,7 @@ session = repo.readonly_session('main')
 ds = xr.open_zarr(session.store, consolidated=False, zarr_version=3)
 ds
 ```
+
 
 ## Dependency management
 

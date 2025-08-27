@@ -7,6 +7,18 @@ import obstore
 import icechunk
 import xarray as xr
 import pandas as pd
+import json
+
+from lithops.config import load_config
+
+# Load the full configuration
+config = load_config()
+print(config)
+
+# Print it nicely formatted
+
+
+print(json.dumps(config, indent=2, default=str))
 
 
 def preprocess(ds: xr.Dataset) -> xr.Dataset:
@@ -54,16 +66,22 @@ experiment_ids = ["HISTORICAL", "SSP245", "SSP585"]
 
 # change these as needed.
 store_bucket = "nasa-veda-scratch"
+data_dir_root = "s3://nasa-waterinsight/RASI/"
+
 
 for experiment_id in experiment_ids:
     ## Find Files of interest
-    data_dir = f"s3://nasa-waterinsight/RASI/ROUTING/{experiment_id}/"
+    data_dir = f"{data_dir_root}**/{experiment_id}/"
     print(f"Processing {data_dir}")
     store_prefix = f"jbusecke/RASI/test/{experiment_id}/"
 
     # Use fsspec to list files in the S3 bucket
     fs = fsspec.filesystem("s3", anon=True)
-    files = fs.glob(data_dir + "**/*.nc")
+    # files = fs.glob(data_dir + "**/*.nc")
+    if experiment_id == "HISTORICAL":
+        files = fs.glob(data_dir + "**/*1951*.nc")
+    else:
+        files = fs.glob(data_dir + "**/*2015*.nc")
 
     print(f"{len(files)} found")
 
@@ -96,13 +114,13 @@ for experiment_id in experiment_ids:
     config = icechunk.RepositoryConfig.default()
     config.set_virtual_chunk_container(
         icechunk.VirtualChunkContainer(
-            data_dir,
+            data_dir_root,
             icechunk.s3_store(region="us-west-2"),
         )
     )
 
     virtual_credentials = icechunk.containers_credentials(
-        {data_dir: icechunk.s3_anonymous_credentials()}
+        {data_dir_root: icechunk.s3_anonymous_credentials()}
     )
     print(f"Open Repo at {store_prefix}")
     repo = icechunk.Repository.open_or_create(
