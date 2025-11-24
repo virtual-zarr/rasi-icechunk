@@ -2,28 +2,23 @@
 
 Creating virtual icechunk stores for [NASA RASI](https://www.nasa.gov/rasi/) dataset.
 
+The virtual icechunk repository is hosted publicly at `s3://nasa-waterinsight/virtual-zarr-store/icechunk/RASI/`.
+
 ## Usage Example
 ```python
 import icechunk
 import xarray as xr
-import zarr
 
 storage = icechunk.s3_storage(
-    bucket='nasa-veda-scratch',
-    prefix=f"jbusecke/RASI/test/HISTORICAL/",
-    # prefix=f"jbusecke/RASI/test/SSP245/",
-    # prefix=f"jbusecke/RASI/test/SSP585/",
-    anonymous=False,
-    from_env=True,
+    bucket='nasa-waterinsight',
+    prefix=f"virtual-zarr-store/icechunk/RASI/HISTORICAL", #replace HISTORICAL with SSP245/SSP585 for future scenarios
+    anonymous=True,
 )
 
 chunk_url = "s3://nasa-waterinsight/RASI/"
-
-virtual_credentials = icechunk.containers_credentials(
-    {
-        chunk_url: icechunk.s3_anonymous_credentials()
-    }
-)
+virtual_credentials = icechunk.containers_credentials({
+    chunk_url: icechunk.s3_anonymous_credentials()
+})
 
 repo = icechunk.Repository.open(
     storage=storage,
@@ -31,7 +26,7 @@ repo = icechunk.Repository.open(
 )
 
 session = repo.readonly_session('main')
-ds = xr.open_zarr(session.store, consolidated=False, zarr_version=3)
+ds = xr.open_zarr(session.store, consolidated=False, zarr_version=3, chunks={})
 ds
 ```
 
