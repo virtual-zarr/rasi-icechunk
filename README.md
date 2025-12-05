@@ -13,6 +13,7 @@ storage = icechunk.s3_storage(
     bucket='nasa-waterinsight',
     prefix=f"virtual-zarr-store/icechunk/RASI/HISTORICAL", #replace HISTORICAL with SSP245/SSP585 for future scenarios
     anonymous=True,
+    region="us-west-2",
 )
 
 chunk_url = "s3://nasa-waterinsight/RASI/"
