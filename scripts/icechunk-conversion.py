@@ -62,14 +62,13 @@ def combine_attrs(dicts, context):
     return combined_attrs
 
 
-experiment_ids = ["HISTORICAL", "SSP245", "SSP585"]
-
 # change these as needed.
 store_bucket = "nasa-veda-scratch"
 data_dir_root = "s3://nasa-waterinsight/RASI/"
 
+experiment_ids = ["HISTORICAL", "SSP245", "SSP585"]
 
-for experiment_id in experiment_ids:
+for experiment_id in experiment_ids[0:1]:
     ## Find Files of interest
     data_dir = f"{data_dir_root}**/{experiment_id}/"
     print(f"Processing {data_dir}")
@@ -85,6 +84,12 @@ for experiment_id in experiment_ids:
 
     print(f"{len(files)} found")
 
+    # Detect variables
+    unique_variables = list(
+        set(["_".join(f.split("/")[-1].split("_")[0:-1]) for f in files])
+    )
+    print(f"{unique_variables=}")
+
     ## Produce a virtual dataset from the list of files
     bucket = "s3://nasa-waterinsight"
     store = obstore.store.from_url(bucket, region="us-west-2", skip_signature=True)
@@ -94,18 +99,32 @@ for experiment_id in experiment_ids:
     parser = NetCDF3Parser()
 
     urls = ["s3://" + file for file in files]
-    vds = open_virtual_mfdataset(
-        urls,
-        parser=parser,
-        registry=registry,
-        parallel="lithops",
-        preprocess=preprocess,
-        combine_attrs=combine_attrs,
-        loadable_variables=["date", "lon", "lat", "percentile"],
-    )
+    var_dict = {}
+    for var in unique_variables:
+        print(var)
+        # Test that one variable only works
+        var_urls = [u for u in urls if var in u]
+        var_vds = open_virtual_mfdataset(
+            var_urls,
+            parser=parser,
+            registry=registry,
+            parallel="lithops",
+            preprocess=preprocess,
+            combine_attrs=combine_attrs,
+            loadable_variables=["date", "lon", "lat", "percentile"],
+        )
+        # the filenames and variable names use inconsistent upper/lower case for percentile
+        # use whatever is the actual variable name is
+        assert len(var_vds.data_vars) == 1
+        var_fixed = list(var_vds.data_vars)[0]
 
-    print(f"Virtual Dataset: {vds}")
-    ## Write (commit) the virtual dataset into icechunk
+        print(f"Virtual Dataset: {var_vds}")
+        var_vda = var_vds[var_fixed]
+        var_dict[var_fixed] = var_vda
+
+    vds = xr.Dataset(var_dict)
+
+    ## Open or create icechunk store
     storage = icechunk.s3_storage(
         bucket=store_bucket,
         prefix=store_prefix,
@@ -131,5 +150,5 @@ for experiment_id in experiment_ids:
 
     session = repo.writable_session("main")
     vds.vz.to_icechunk(session.store)
-    session.commit("First Commit")
+    session.commit(f"Add {var}")
     print(f"{store_prefix}: DONE")
