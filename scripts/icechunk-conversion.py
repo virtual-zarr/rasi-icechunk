@@ -8,6 +8,7 @@ import icechunk
 import xarray as xr
 import pandas as pd
 import json
+import shutil
 
 from lithops.config import load_config
 
@@ -62,50 +63,108 @@ def combine_attrs(dicts, context):
     return combined_attrs
 
 
-experiment_ids = ["HISTORICAL", "SSP245", "SSP585"]
-
 # change these as needed.
 store_bucket = "nasa-veda-scratch"
+prefix = "jbusecke/RASI/delivery"
 data_dir_root = "s3://nasa-waterinsight/RASI/"
+# experiment_ids = ["HISTORICAL", "SSP245", "SSP585"]
+experiment_ids = ["SSP585"]
+# variables = ['RZSM_percentiles', 'SWE_percentiles', 'SnowDepth_percentiles', 'TotalPrecip_percentiles', 'Snowf_percentiles', 'Qs_percentiles', 'Streamflow_percentiles', 'AvgSurfT_percentiles', 'Qsb_percentiles']
+# Excluding streamflow for now
+variables = [
+    "RZSM_percentiles",
+    "SWE_percentiles",
+    "SnowDepth_percentiles",
+    "TotalPrecip_percentiles",
+    "Snowf_percentiles",
+    "Qs_percentiles",
+    "AvgSurfT_percentiles",
+    "Qsb_percentiles",
+]
 
+## Produce a virtual dataset from the list of files
+bucket = "s3://nasa-waterinsight"
+store = obstore.store.from_url(bucket, region="us-west-2", skip_signature=True)
 
+registry = ObjectStoreRegistry({bucket: store})
+
+parser = NetCDF3Parser()
+
+files_dict = {}
+# Contstruct files and check numbering (I suspect that some are actually missing!)
 for experiment_id in experiment_ids:
+    files_dict[experiment_id] = {}
     ## Find Files of interest
     data_dir = f"{data_dir_root}**/{experiment_id}/"
     print(f"Processing {data_dir}")
-    store_prefix = f"jbusecke/RASI/test/{experiment_id}/"
-
     # Use fsspec to list files in the S3 bucket
     fs = fsspec.filesystem("s3", anon=True)
-    # files = fs.glob(data_dir + "**/*.nc")
-    if experiment_id == "HISTORICAL":
-        files = fs.glob(data_dir + "**/*1951*.nc")
-    else:
-        files = fs.glob(data_dir + "**/*2015*.nc")
 
-    print(f"{len(files)} found")
+    files = fs.glob(data_dir + "**/*.nc")
 
-    ## Produce a virtual dataset from the list of files
-    bucket = "s3://nasa-waterinsight"
-    store = obstore.store.from_url(bucket, region="us-west-2", skip_signature=True)
+    for var in variables:
+        var_files = [f for f in files if var in f]
 
-    registry = ObjectStoreRegistry({bucket: store})
+        # not necessary if we do not virtualize 'Streamflow_percentiles'
+        # # TEMPORARY FIX (filter out years < and >2082 to avoid the time mismatch with Streamflow_percentiles (https://github.com/virtual-zarr/rasi-icechunk/issues/5)
+        # print('filtering files to align time as temporary fix')
+        # var_files_filtered = []
+        # for f in var_files:
+        #     year = int(f.replace('.nc','').split('_')[-1][0:4])
+        #     if year >= 1951 and year <= 2082:
+        #         var_files_filtered.append(f)
+        # var_files = var_files_filtered
+        files_dict[experiment_id][var] = var_files
 
-    parser = NetCDF3Parser()
+for experiment_id in experiment_ids:
+    print(f"Creating Store for {experiment_id=}")
+    store_prefix = f"{prefix}/{experiment_id}/"
 
-    urls = ["s3://" + file for file in files]
-    vds = open_virtual_mfdataset(
-        urls,
-        parser=parser,
-        registry=registry,
-        parallel="lithops",
-        preprocess=preprocess,
-        combine_attrs=combine_attrs,
-        loadable_variables=["date", "lon", "lat", "percentile"],
-    )
+    var_dict = {}
+    for var in files_dict[experiment_id].keys():
+        files = files_dict[experiment_id][var]
+        print(f"{len(files)} files found")
+        urls = ["s3://" + file for file in files]
+        print(f"Virtualizing {var=}")
+        var_vds = open_virtual_mfdataset(
+            urls,
+            parser=parser,
+            registry=registry,
+            # parallel="lithops",
+            parallel="dask",
+            preprocess=preprocess,
+            combine_attrs=combine_attrs,
+            loadable_variables=["date", "lon", "lat", "percentile"],
+        )
 
-    print(f"Virtual Dataset: {vds}")
-    ## Write (commit) the virtual dataset into icechunk
+        print(f"Single variable virtual Dataset: {var_vds}")
+
+        print("Checking variables and parsing to datarray")
+        # the filenames and variable names use inconsistent upper/lower case for percentile
+        # use whatever is the actual variable name is
+        assert len(var_vds.data_vars) == 1
+        var_fixed = list(var_vds.data_vars)[0]
+
+        print(f"Variable from file {var} vs variable from data {var_fixed}")
+        if var_fixed.lower() != var.lower():
+            raise ValueError("Variables do not match")
+
+        var_vda = var_vds[var_fixed]
+        var_dict[var_fixed] = var_vda
+        print(f"Single variable dataset {var_vda}")
+
+        # this errored out before! Quick fix for now:
+        # Does open_virtual_mdfdataset need a cleanup call?
+        import os
+
+        if os.path.exists("/tmp/lithops-root/lithops"):
+            shutil.rmtree("/tmp/lithops-root/lithops")
+
+    # vds = xr.Dataset(var_dict)
+    vds = xr.merge(var_dict.values())
+    print(f"Virtual Merged Dataset {vds}")
+
+    ## Open or create icechunk store
     storage = icechunk.s3_storage(
         bucket=store_bucket,
         prefix=store_prefix,
@@ -122,6 +181,7 @@ for experiment_id in experiment_ids:
     virtual_credentials = icechunk.containers_credentials(
         {data_dir_root: icechunk.s3_anonymous_credentials()}
     )
+
     print(f"Open Repo at {store_prefix}")
     repo = icechunk.Repository.open_or_create(
         storage=storage,
@@ -131,5 +191,5 @@ for experiment_id in experiment_ids:
 
     session = repo.writable_session("main")
     vds.vz.to_icechunk(session.store)
-    session.commit("First Commit")
+    session.commit(f"Add {var}")
     print(f"{store_prefix}: DONE")
