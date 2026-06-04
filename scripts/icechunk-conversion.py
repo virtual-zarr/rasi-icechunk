@@ -65,10 +65,10 @@ def combine_attrs(dicts, context):
 
 # change these as needed.
 store_bucket = "nasa-veda-scratch"
-prefix = "jbusecke/RASI/delivery"
-data_dir_root = "s3://nasa-waterinsight/RASI/"
+prefix = "sid/RASI/"
+data_dir_root = "s3://veda-data-store-staging/water-insight/RASI/"
 # experiment_ids = ["HISTORICAL", "SSP245", "SSP585"]
-experiment_ids = ["SSP585"]
+experiment_ids = ["HISTORICAL"]
 # variables = ['RZSM_percentiles', 'SWE_percentiles', 'SnowDepth_percentiles', 'TotalPrecip_percentiles', 'Snowf_percentiles', 'Qs_percentiles', 'Streamflow_percentiles', 'AvgSurfT_percentiles', 'Qsb_percentiles']
 # Excluding streamflow for now
 variables = [
@@ -83,8 +83,8 @@ variables = [
 ]
 
 ## Produce a virtual dataset from the list of files
-bucket = "s3://nasa-waterinsight"
-store = obstore.store.from_url(bucket, region="us-west-2", skip_signature=True)
+bucket = "s3://veda-data-store-staging"
+store = obstore.store.from_url(bucket, region="us-west-2")
 
 registry = ObjectStoreRegistry({bucket: store})
 
@@ -98,7 +98,7 @@ for experiment_id in experiment_ids:
     data_dir = f"{data_dir_root}**/{experiment_id}/"
     print(f"Processing {data_dir}")
     # Use fsspec to list files in the S3 bucket
-    fs = fsspec.filesystem("s3", anon=True)
+    fs = fsspec.filesystem("s3")
 
     files = fs.glob(data_dir + "**/*.nc")
 
@@ -107,13 +107,13 @@ for experiment_id in experiment_ids:
 
         # not necessary if we do not virtualize 'Streamflow_percentiles'
         # # TEMPORARY FIX (filter out years < and >2082 to avoid the time mismatch with Streamflow_percentiles (https://github.com/virtual-zarr/rasi-icechunk/issues/5)
-        # print('filtering files to align time as temporary fix')
-        # var_files_filtered = []
-        # for f in var_files:
-        #     year = int(f.replace('.nc','').split('_')[-1][0:4])
-        #     if year >= 1951 and year <= 2082:
-        #         var_files_filtered.append(f)
-        # var_files = var_files_filtered
+        print('filtering files to align time as temporary fix')
+        var_files_filtered = []
+        for f in var_files:
+             year = int(f.replace('.nc','').split('_')[-1][0:4])
+             if year >= 1951 and year <= 2082:
+                 var_files_filtered.append(f)
+        var_files = var_files_filtered
         files_dict[experiment_id][var] = var_files
 
 for experiment_id in experiment_ids:
@@ -179,7 +179,7 @@ for experiment_id in experiment_ids:
     )
 
     virtual_credentials = icechunk.containers_credentials(
-        {data_dir_root: icechunk.s3_anonymous_credentials()}
+        {data_dir_root:  icechunk.s3_credentials()}
     )
 
     print(f"Open Repo at {store_prefix}")
@@ -193,3 +193,5 @@ for experiment_id in experiment_ids:
     vds.vz.to_icechunk(session.store)
     session.commit(f"Add {var}")
     print(f"{store_prefix}: DONE")
+
+   
